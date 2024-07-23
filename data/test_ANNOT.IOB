@@ -1,10 +1,11 @@
 John	B-PER
 lives	O
-in	O
+in	B-PER
 New	B-LOC
 York	I-LOC
+	
 Marie	B-PER
 lives	O
 in	O
 the	O
-office	O
+office	B-LOC
