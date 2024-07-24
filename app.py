@@ -223,9 +223,13 @@ def main():
                 st.rerun()
 
     # Display current index and timestamp in the sidebar
-    st.sidebar.write(f"Item: {current_index}")
+    st.sidebar.write(f"Index: {current_index}")
+
     current_timestamp = get_current_timestamp(args.file, current_index)
-    st.sidebar.write(f"Approved: {current_timestamp}")
+    if current_timestamp != "Not logged":
+        st.sidebar.markdown(f"<span style='color: orange;'>Last Update: {current_timestamp}</span>", unsafe_allow_html=True)
+    else:
+        st.sidebar.markdown("<span style='color: red;'>Last Update: Not logged</span>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
