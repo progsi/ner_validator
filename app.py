@@ -24,7 +24,8 @@ def load_data(file_path):
     df = pd.read_csv(file_path, sep='\t', header=None)
     return df
 
-def load_metadata(file_path):
+def load_metadata(file_name):
+    file_path = os.path.join("data", "input", file_name)
     if os.path.exists(file_path):
         df = pd.read_csv(file_path, sep='\t')
         return df
@@ -113,7 +114,7 @@ def display_metadata(metadata_entry, colors):
     if not metadata_entry.empty:
         for col in metadata_entry.index:
             color = colors.get(col, '#000000')
-            st.markdown(f"<span style='color:{color}'>{col}: {metadata_entry[col]}</span>", unsafe_allow_html=True)
+            st.markdown(f"<span style='color:{color}; font-weight: bold;'>{col}: {metadata_entry[col]}</span>", unsafe_allow_html=True)
     else:
         st.markdown("No metadata available.")
 
@@ -150,87 +151,61 @@ def load_config():
         with open(config_path, 'r') as file:
             config = yaml.safe_load(file)
     else:
-        config = {"annotator": "ANNOT1"}
+        config = {"annotator": "ANNOT1", "file_name": None}
     return config
 
 def save_config(config):
     with open("config.yml", 'w') as file:
         yaml.safe_dump(config, file)
 
-def find_first_iob_file(directory):
-    for file_name in os.listdir(directory):
-        if file_name.lower().endswith('.iob'):
-            return file_name
-    return None
+def find_iob_files(directory):
+    return [file_name for file_name in os.listdir(directory) if file_name.lower().endswith('.iob')]
 
 def main():
-    # Automatically find the first .IOB file in the data/input directory
+    # Automatically find IOB files in the data/input directory
     input_dir = os.path.join("data", "input")
-    first_iob_file = find_first_iob_file(input_dir)
+    iob_files = find_iob_files(input_dir)
     
-    if not first_iob_file:
+    if not iob_files:
         st.error("No .IOB files found in the 'data/input' directory.")
         return
-    
-    initial_file_path = os.path.join(input_dir, first_iob_file)
-    metadata_file_path = initial_file_path.replace('.IOB', '.metadata')
 
-    # Load config and determine annotator
+    # Load config
     config = load_config()
     annotator = config.get("annotator", "ANNOT1")
-
-    # Define annotator-specific file paths
-    annotator_file_path = os.path.join("data", "output", first_iob_file.replace('.IOB', f'_{annotator}.IOB'))
-
-    # Use annotator-specific file if available, otherwise fallback to initial file
-    file_path = get_file_path(first_iob_file, annotator)
-
-    if not os.path.exists(file_path):
-        st.error(f"File {first_iob_file} does not exist.")
-        return
-
-    # Load data and metadata
-    df = load_data(file_path)
-    metadata_df = load_metadata(metadata_file_path)
-    samples = split_samples(df)
-
-    st.title("NER Validator")
-
-    # Sidebar for selecting annotator
+    current_file = config.get("file_name", iob_files[0])
+    
+    # Sidebar for selecting annotator and IOB file
     annotator_options = ["ANNOT1", "ANNOT2", "ANNOT3", "ANNOT4", "ANNOT5"]
     selected_annotator = st.sidebar.selectbox("Annotator", annotator_options, index=annotator_options.index(annotator))
-
-    if selected_annotator != annotator:
+    
+    # Dropdown for selecting IOB file
+    selected_file = st.sidebar.selectbox("IOB File", iob_files, index=iob_files.index(current_file))
+    
+    if selected_annotator != annotator or selected_file != current_file:
         config["annotator"] = selected_annotator
+        config["file_name"] = selected_file
         save_config(config)
-        # Determine new file paths based on selected annotator
-        annotator_file_path = os.path.join("data", "output", first_iob_file.replace('.IOB', f'_{selected_annotator}.IOB'))
-        if os.path.exists(annotator_file_path):
-            file_path = annotator_file_path
-        else:
-            file_path = initial_file_path
-
-        # Reset session state for new annotator
-        st.session_state.current_index = get_first_unlogged_index(first_iob_file, selected_annotator, len(samples))
-        st.session_state.samples = split_samples(load_data(file_path))
-        st.session_state.metadata_df = load_metadata(metadata_file_path)
+        st.session_state.current_index = get_first_unlogged_index(selected_file, selected_annotator, len(split_samples(load_data(get_file_path(selected_file, selected_annotator)))))
+        st.session_state.samples = split_samples(load_data(get_file_path(selected_file, selected_annotator)))
+        st.session_state.metadata_df = load_metadata(selected_file.replace('.IOB', '.metadata'))
         st.rerun()
 
     if "current_index" not in st.session_state:
-        st.session_state.current_index = get_first_unlogged_index(first_iob_file, selected_annotator, len(samples))
+        st.session_state.current_index = get_first_unlogged_index(selected_file, selected_annotator, len(split_samples(load_data(get_file_path(selected_file, selected_annotator)))))
 
     if "samples" not in st.session_state:
-        st.session_state.samples = samples
+        st.session_state.samples = split_samples(load_data(get_file_path(selected_file, selected_annotator)))
 
     if "metadata_df" not in st.session_state:
-        st.session_state.metadata_df = metadata_df
+        st.session_state.metadata_df = load_metadata(selected_file.replace('.IOB', '.metadata'))
 
     current_index = st.session_state.current_index
     current_sample = st.session_state.samples[current_index]
     current_metadata_entry = st.session_state.metadata_df.iloc[current_index] if not st.session_state.metadata_df.empty else pd.Series()
 
     # Extract columns and assign light colors
-    columns = [col for col in metadata_df.columns if 'color' not in col.lower()] if not metadata_df.empty else []
+    columns = [col for col in st.session_state.metadata_df.columns if 'color' not in col.lower()] if not st.session_state.metadata_df.empty else []
     colors = {col: COLORS[i % len(COLORS)] for i, col in enumerate(columns)}
 
     display_metadata(current_metadata_entry, colors)
@@ -267,8 +242,8 @@ def main():
                 changes_made = True
 
     if changes_made:
-        write_annotations(first_iob_file, st.session_state.samples, selected_annotator)
-        log_timestamp(first_iob_file, selected_annotator, current_index)
+        write_annotations(selected_file, st.session_state.samples, selected_annotator)
+        log_timestamp(selected_file, selected_annotator, current_index)
 
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
@@ -285,16 +260,16 @@ def main():
 
     with col3:
         if st.button('Approve and Next'):
-            log_timestamp(first_iob_file, selected_annotator, current_index)
+            log_timestamp(selected_file, selected_annotator, current_index)
             if current_index < len(st.session_state.samples) - 1:
-                _ = write_annotations(first_iob_file, st.session_state.samples, selected_annotator)
+                _ = write_annotations(selected_file, st.session_state.samples, selected_annotator)
                 st.session_state.current_index += 1
                 st.rerun()
 
     # Display current index and timestamp in the sidebar
     st.sidebar.write(f"Index: {current_index}")
 
-    current_timestamp = get_current_timestamp(first_iob_file, selected_annotator, current_index)
+    current_timestamp = get_current_timestamp(selected_file, selected_annotator, current_index)
     if current_timestamp != "Not logged":
         st.sidebar.markdown(f"<span style='color: white;'>Approved: {current_timestamp}</span>", unsafe_allow_html=True)
     else:

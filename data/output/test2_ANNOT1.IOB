@@ -1,0 +1,17 @@
+Kelvin	B-PER
+lives	O
+in	O
+New	B-LOC
+York	O
+	
+Storm	O
+lives	O
+in	O
+the	B-LOC
+office	I-LOC
+	
+She	B-PER
+goes	O
+in	O
+mad	O
+brains	B-LOC
