@@ -67,36 +67,33 @@ def log_timestamp(file_name, index):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     # Read existing log entries
-    log_entries = {}
     if os.path.exists(log_file_path):
-        with open(log_file_path, 'r') as log_file:
-            for line in log_file:
-                parts = line.strip().split(": ")
-                if len(parts) == 2:
-                    idx, ts = parts
-                    idx = int(idx.split()[1])
-                    log_entries[idx] = ts
+        log_df = pd.read_csv(log_file_path, sep='\t', index_col=0)
+    else:
+        log_df = pd.DataFrame(columns=['Timestamp'])
     
     # Update the log entry for the given index
-    log_entries[index] = timestamp
+    log_df.loc[index] = [timestamp]
     
     # Write the updated log entries back to the file
-    with open(log_file_path, 'w') as log_file:
-        for idx, ts in sorted(log_entries.items()):
-            log_file.write(f"Index {idx}: {ts}\n")
+    log_df.to_csv(log_file_path, sep='\t')
 
 def get_current_timestamp(file_name, index):
     log_file_path = os.path.join("logs", f"{file_name}.log")
     if os.path.exists(log_file_path):
-        with open(log_file_path, 'r') as log_file:
-            for line in log_file:
-                parts = line.strip().split(": ")
-                if len(parts) == 2:
-                    idx, ts = parts
-                    idx = int(idx.split()[1])
-                    if idx == index:
-                        return ts
+        log_df = pd.read_csv(log_file_path, sep='\t', index_col=0)
+        if index in log_df.index:
+            return log_df.loc[index, 'Timestamp']
     return "Not logged"
+
+def get_first_unlogged_index(file_name, total_samples):
+    log_file_path = os.path.join("logs", f"{file_name}.log")
+    if os.path.exists(log_file_path):
+        log_df = pd.read_csv(log_file_path, sep='\t', index_col=0)
+        for idx in range(total_samples):
+            if idx not in log_df.index:
+                return idx
+    return 0
 
 def display_metadata(metadata_entry, colors):
     for col in metadata_entry.index:
@@ -152,7 +149,7 @@ def main():
     st.title("NER Validator")
 
     if "current_index" not in st.session_state:
-        st.session_state.current_index = 0
+        st.session_state.current_index = get_first_unlogged_index(args.file, len(samples))
 
     if "samples" not in st.session_state:
         st.session_state.samples = samples
@@ -172,6 +169,9 @@ def main():
 
     num_tokens = len(current_sample)
     cols = st.columns(num_tokens, gap="small")
+
+    # Flag to track if any changes were made
+    changes_made = False
 
     # Display tokens and tags for the current sample
     for i, row in current_sample.iterrows():
@@ -195,10 +195,11 @@ def main():
                         class_type = next_tag[2:]
                         current_sample['Tag'].iloc[i + 1] = f'B-{class_type}'
                 st.session_state.samples[current_index] = current_sample
-                changes_made = write_annotations(file_path, st.session_state.samples)
-                if changes_made:
-                    log_timestamp(args.file, current_index)
-                st.rerun()
+                changes_made = True
+
+    if changes_made:
+        write_annotations(file_path, st.session_state.samples)
+        log_timestamp(args.file, current_index)
 
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
@@ -215,21 +216,20 @@ def main():
 
     with col3:
         if st.button('Approve and Next'):
+            log_timestamp(args.file, current_index)
             if current_index < len(st.session_state.samples) - 1:
-                changes_made = write_annotations(file_path, st.session_state.samples)
-                if changes_made:
-                    log_timestamp(args.file, current_index)
+                _ = write_annotations(file_path, st.session_state.samples)
                 st.session_state.current_index += 1
                 st.rerun()
-
+		
     # Display current index and timestamp in the sidebar
     st.sidebar.write(f"Index: {current_index}")
 
     current_timestamp = get_current_timestamp(args.file, current_index)
     if current_timestamp != "Not logged":
-        st.sidebar.markdown(f"<span style='color: orange;'>Last Update: {current_timestamp}</span>", unsafe_allow_html=True)
+        st.sidebar.markdown(f"<span style='color: white;'>Approved: {current_timestamp}</span>", unsafe_allow_html=True)
     else:
-        st.sidebar.markdown("<span style='color: red;'>Last Update: Not logged</span>", unsafe_allow_html=True)
+        st.sidebar.markdown("<span style='color: orange;'>Approved: Not logged</span>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
