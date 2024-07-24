@@ -29,6 +29,11 @@ def load_metadata(file_path):
     df = pd.read_csv(file_path, sep='\t')
     return df
 
+def get_file_path(file_name, annotator):
+    annotation_file_path = os.path.join("data", "output", file_name.replace('.IOB', f'_{annotator}.IOB'))
+    file_path = annotation_file_path if os.path.isfile(annotation_file_path) else os.path.join("data", "input", file_name)
+    return file_path
+    
 def split_samples(df):
     samples = []
     sample = []
@@ -64,7 +69,7 @@ def update_tags_on_change(tags, index, new_tag):
     return tags
 
 def get_log_filepath(file_name, annotator):
-    return os.path.join("logs", f"{annotator}_{file_name}.log")
+    return os.path.join("logs", f"{file_name}_{annotator}.log")
     
 def log_timestamp(file_name, annotator, index):
     log_file_path = get_log_filepath(file_name, annotator)
@@ -103,9 +108,9 @@ def display_metadata(metadata_entry, colors):
     for col in metadata_entry.index:
         color = colors.get(col, '#000000')
         st.markdown(f"<span style='color:{color}'>{col}: {metadata_entry[col]}</span>", unsafe_allow_html=True)
-
-def write_annotations(file_path, samples, annotator):
-    annotation_file_path = file_path.replace('.IOB', f'_{annotator}.IOB')
+	
+def write_annotations(file_name, samples, annotator):
+    file_path = get_file_path(file_name, annotator)
     with open(file_path, 'r') as file:
         lines = file.readlines()
     
@@ -113,7 +118,7 @@ def write_annotations(file_path, samples, annotator):
     sample_index = 0
     changes_made = False
     
-    with open(annotation_file_path, 'w') as file:
+    with open(file_path, 'w') as file:
         for line in lines:
             if line.strip() == '':
                 # Empty line indicates the end of a sample
@@ -150,7 +155,7 @@ def main():
     args = parser.parse_args()
     
     # Initial file paths
-    initial_file_path = os.path.join("data", args.file)
+    initial_file_path = os.path.join("data", "input", args.file)
     metadata_file_path = initial_file_path.replace('.IOB', '.metadata')
 
     # Load config and determine annotator
@@ -158,13 +163,11 @@ def main():
     annotator = config.get("annotator", "ANNOT1")
 
     # Define annotator-specific file paths
-    annotator_file_path = os.path.join("data", args.file.replace('.IOB', f'_{annotator}.IOB'))
+    annotator_file_path = os.path.join("data", "output", args.file.replace('.IOB', f'_{annotator}.IOB'))
 
     # Use annotator-specific file if available, otherwise fallback to initial file
-    if os.path.exists(annotator_file_path):
-        file_path = annotator_file_path
-    else:
-        file_path = initial_file_path
+    file_path = get_file_path(args.file, annotator)
+
 
     if not os.path.exists(file_path):
         st.error(f"File {args.file} does not exist.")
@@ -188,7 +191,7 @@ def main():
         config["annotator"] = selected_annotator
         save_config(config)
         # Determine new file paths based on selected annotator
-        annotator_file_path = os.path.join("data", args.file.replace('.IOB', f'_{selected_annotator}.IOB'))
+        annotator_file_path = os.path.join("data", "output", args.file.replace('.IOB', f'_{selected_annotator}.IOB'))
         if os.path.exists(annotator_file_path):
             file_path = annotator_file_path
         else:
@@ -231,13 +234,14 @@ def main():
             tag_type = row['Tag'].split('-')[-1]
             token_color = colors.get(tag_type, '#ffffff')
             st.markdown(f"<div style='border: 2px solid {token_color}; padding: 2px; margin: 2px; font-size: small;'>{row['Token']}</div>", unsafe_allow_html=True)
+            
             tag_options = get_available_tags(current_sample['Tag'].tolist(), i)
             selected_tag = st.selectbox(
                 "Tag Selection:",
                 label_visibility="hidden",
                 options=tag_options,
                 index=tag_options.index(row['Tag']) if row['Tag'] in tag_options else 0,
-                key=f"tag_select_{i}"
+                key=f"tag_select_{current_index}_{i}"  # Key includes current_index to ensure uniqueness
             )
             if selected_tag != row['Tag']:
                 current_sample['Tag'].iloc[i] = selected_tag
@@ -250,7 +254,7 @@ def main():
                 changes_made = True
 
     if changes_made:
-        write_annotations(file_path, st.session_state.samples, selected_annotator)
+        write_annotations(args.file, st.session_state.samples, selected_annotator)
         log_timestamp(args.file, selected_annotator, current_index)
 
     col1, col2, col3 = st.columns([1, 1, 1])
@@ -270,7 +274,7 @@ def main():
         if st.button('Approve and Next'):
             log_timestamp(args.file, selected_annotator, current_index)
             if current_index < len(st.session_state.samples) - 1:
-                _ = write_annotations(file_path, st.session_state.samples, selected_annotator)
+                _ = write_annotations(args.file, st.session_state.samples, selected_annotator)
                 st.session_state.current_index += 1
                 st.rerun()
 
