@@ -3,6 +3,7 @@ import pandas as pd
 import argparse
 import os
 import datetime
+import yaml
 
 TAGS = ["O", "B-PER", "B-LOC"]
 
@@ -62,8 +63,11 @@ def update_tags_on_change(tags, index, new_tag):
             tags[index + 1] = f'B-{class_type}'
     return tags
 
-def log_timestamp(file_name, index):
-    log_file_path = os.path.join("logs", f"{file_name}.log")
+def get_log_filepath(file_name, annotator):
+    return os.path.join("logs", f"{annotator}_{file_name}.log")
+    
+def log_timestamp(file_name, annotator, index):
+    log_file_path = get_log_filepath(file_name, annotator)
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     # Read existing log entries
@@ -78,16 +82,16 @@ def log_timestamp(file_name, index):
     # Write the updated log entries back to the file
     log_df.to_csv(log_file_path, sep='\t')
 
-def get_current_timestamp(file_name, index):
-    log_file_path = os.path.join("logs", f"{file_name}.log")
+def get_current_timestamp(file_name, annotator, index):
+    log_file_path = get_log_filepath(file_name, annotator)
     if os.path.exists(log_file_path):
         log_df = pd.read_csv(log_file_path, sep='\t', index_col=0)
         if index in log_df.index:
             return log_df.loc[index, 'Timestamp']
     return "Not logged"
 
-def get_first_unlogged_index(file_name, total_samples):
-    log_file_path = os.path.join("logs", f"{file_name}.log")
+def get_first_unlogged_index(file_name, annotator, total_samples):
+    log_file_path = get_log_filepath(file_name, annotator)
     if os.path.exists(log_file_path):
         log_df = pd.read_csv(log_file_path, sep='\t', index_col=0)
         for idx in range(total_samples):
@@ -100,7 +104,8 @@ def display_metadata(metadata_entry, colors):
         color = colors.get(col, '#000000')
         st.markdown(f"<span style='color:{color}'>{col}: {metadata_entry[col]}</span>", unsafe_allow_html=True)
 
-def write_annotations(file_path, samples):
+def write_annotations(file_path, samples, annotator):
+    annotation_file_path = file_path.replace('.IOB', f'_{annotator}.IOB')
     with open(file_path, 'r') as file:
         lines = file.readlines()
     
@@ -108,7 +113,7 @@ def write_annotations(file_path, samples):
     sample_index = 0
     changes_made = False
     
-    with open(file_path.replace('.IOB', '_ANNOT.IOB'), 'w') as file:
+    with open(annotation_file_path, 'w') as file:
         for line in lines:
             if line.strip() == '':
                 # Empty line indicates the end of a sample
@@ -126,13 +131,40 @@ def write_annotations(file_path, samples):
     
     return changes_made
 
+def load_config():
+    config_path = "config.yml"
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as file:
+            config = yaml.safe_load(file)
+    else:
+        config = {"annotator": "ANNOT1"}
+    return config
+
+def save_config(config):
+    with open("config.yml", 'w') as file:
+        yaml.safe_dump(config, file)
+
 def main():
     parser = argparse.ArgumentParser(description="NER Validator")
     parser.add_argument("--file", type=str, required=True, help="Path to the IOB dataset file")
     args = parser.parse_args()
     
-    file_path = os.path.join("data", args.file)
-    metadata_file_path = file_path.replace('.IOB', '.metadata')
+    # Initial file paths
+    initial_file_path = os.path.join("data", args.file)
+    metadata_file_path = initial_file_path.replace('.IOB', '.metadata')
+
+    # Load config and determine annotator
+    config = load_config()
+    annotator = config.get("annotator", "ANNOT1")
+
+    # Define annotator-specific file paths
+    annotator_file_path = os.path.join("data", args.file.replace('.IOB', f'_{annotator}.IOB'))
+
+    # Use annotator-specific file if available, otherwise fallback to initial file
+    if os.path.exists(annotator_file_path):
+        file_path = annotator_file_path
+    else:
+        file_path = initial_file_path
 
     if not os.path.exists(file_path):
         st.error(f"File {args.file} does not exist.")
@@ -148,8 +180,28 @@ def main():
 
     st.title("NER Validator")
 
+    # Sidebar for selecting annotator
+    annotator_options = ["ANNOT1", "ANNOT2", "ANNOT3", "ANNOT4", "ANNOT5"]
+    selected_annotator = st.sidebar.selectbox("Annotator", annotator_options, index=annotator_options.index(annotator))
+
+    if selected_annotator != annotator:
+        config["annotator"] = selected_annotator
+        save_config(config)
+        # Determine new file paths based on selected annotator
+        annotator_file_path = os.path.join("data", args.file.replace('.IOB', f'_{selected_annotator}.IOB'))
+        if os.path.exists(annotator_file_path):
+            file_path = annotator_file_path
+        else:
+            file_path = initial_file_path
+
+        # Reset session state for new annotator
+        st.session_state.current_index = get_first_unlogged_index(args.file, selected_annotator, len(samples))
+        st.session_state.samples = split_samples(load_data(file_path))
+        st.session_state.metadata_df = load_metadata(metadata_file_path)
+        st.rerun()
+
     if "current_index" not in st.session_state:
-        st.session_state.current_index = get_first_unlogged_index(args.file, len(samples))
+        st.session_state.current_index = get_first_unlogged_index(args.file, selected_annotator, len(samples))
 
     if "samples" not in st.session_state:
         st.session_state.samples = samples
@@ -198,8 +250,8 @@ def main():
                 changes_made = True
 
     if changes_made:
-        write_annotations(file_path, st.session_state.samples)
-        log_timestamp(args.file, current_index)
+        write_annotations(file_path, st.session_state.samples, selected_annotator)
+        log_timestamp(args.file, selected_annotator, current_index)
 
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
@@ -216,16 +268,16 @@ def main():
 
     with col3:
         if st.button('Approve and Next'):
-            log_timestamp(args.file, current_index)
+            log_timestamp(args.file, selected_annotator, current_index)
             if current_index < len(st.session_state.samples) - 1:
-                _ = write_annotations(file_path, st.session_state.samples)
+                _ = write_annotations(file_path, st.session_state.samples, selected_annotator)
                 st.session_state.current_index += 1
                 st.rerun()
-		
+
     # Display current index and timestamp in the sidebar
     st.sidebar.write(f"Index: {current_index}")
 
-    current_timestamp = get_current_timestamp(args.file, current_index)
+    current_timestamp = get_current_timestamp(args.file, selected_annotator, current_index)
     if current_timestamp != "Not logged":
         st.sidebar.markdown(f"<span style='color: white;'>Approved: {current_timestamp}</span>", unsafe_allow_html=True)
     else:
