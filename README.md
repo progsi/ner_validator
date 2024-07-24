@@ -1,11 +1,12 @@
 # NER Validator
 A small tool to validate NER annotations in inside-outside-beginning (IOB) format.
-## Getting Started (with SSH Tunnel)
-### 1. Install environment
-`conda env create -f env.yml`
-### 2. Run streamlit app on the server with `FILE.IOB` being your IOB file. 
-`streamlit run app.py --server.port 8501 -- --file FILE.IOB`
-### 3. On your machine with your connection to `USER@SERVER`:
-`ssh -L 8501:localhost:8501 USER@SERVER`
-### 4. Open on your machine in the browser:
-`http://localhost:8501`
+## Connecting with SSH Tunnel
+### Requirements
+- a user on a server which is reachable via SSH
+- Python, Conda etc. on the respective server
+### Steps
+1. Run `run_server.sh` on the server
+2. Run `run_local.sh YOUR_USER@YOUR_SERVER` on your machine replacing `YOUR_USER` and `YOUR_SERVER` accordingly
+## Data Preparation
+- an IOB file into `data/input`
+- optionally: a .metadata file (csv file with tab separators) for showing metadata per item (eg. true entity names)
