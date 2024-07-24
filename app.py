@@ -85,6 +85,19 @@ def log_timestamp(file_name, index):
         for idx, ts in sorted(log_entries.items()):
             log_file.write(f"Index {idx}: {ts}\n")
 
+def get_current_timestamp(file_name, index):
+    log_file_path = os.path.join("logs", f"{file_name}.log")
+    if os.path.exists(log_file_path):
+        with open(log_file_path, 'r') as log_file:
+            for line in log_file:
+                parts = line.strip().split(": ")
+                if len(parts) == 2:
+                    idx, ts = parts
+                    idx = int(idx.split()[1])
+                    if idx == index:
+                        return ts
+    return "Not logged"
+
 def display_metadata(metadata_entry, colors):
     for col in metadata_entry.index:
         color = colors.get(col, '#000000')
@@ -96,6 +109,7 @@ def write_annotations(file_path, samples):
     
     # Track the current sample index
     sample_index = 0
+    changes_made = False
     
     with open(file_path.replace('.IOB', '_ANNOT.IOB'), 'w') as file:
         for line in lines:
@@ -107,9 +121,13 @@ def write_annotations(file_path, samples):
                 if sample_index < len(samples):
                     token, _ = line.strip().split('\t', 1)
                     tag = samples[sample_index].loc[samples[sample_index]['Token'] == token, 'Tag'].values[0]
+                    if line.strip() != f"{token}\t{tag}":
+                        changes_made = True
                     file.write(f"{token}\t{tag}\n")
                 else:
                     file.write(line)
+    
+    return changes_made
 
 def main():
     parser = argparse.ArgumentParser(description="NER Validator")
@@ -177,23 +195,37 @@ def main():
                         class_type = next_tag[2:]
                         current_sample['Tag'].iloc[i + 1] = f'B-{class_type}'
                 st.session_state.samples[current_index] = current_sample
-                write_annotations(file_path, st.session_state.samples)
+                changes_made = write_annotations(file_path, st.session_state.samples)
+                if changes_made:
+                    log_timestamp(args.file, current_index)
                 st.rerun()
 
-    col1, col2 = st.columns([1, 1])
+    col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
         if st.button('Prev'):
             if current_index > 0:
-                log_timestamp(args.file, current_index)
                 st.session_state.current_index -= 1
                 st.rerun()
 
     with col2:
         if st.button('Next'):
             if current_index < len(st.session_state.samples) - 1:
-                log_timestamp(args.file, current_index)
                 st.session_state.current_index += 1
                 st.rerun()
+
+    with col3:
+        if st.button('Approve and Next'):
+            if current_index < len(st.session_state.samples) - 1:
+                changes_made = write_annotations(file_path, st.session_state.samples)
+                if changes_made:
+                    log_timestamp(args.file, current_index)
+                st.session_state.current_index += 1
+                st.rerun()
+
+    # Display current index and timestamp in the sidebar
+    st.sidebar.write(f"Item: {current_index}")
+    current_timestamp = get_current_timestamp(args.file, current_index)
+    st.sidebar.write(f"Approved: {current_timestamp}")
 
 if __name__ == "__main__":
     main()

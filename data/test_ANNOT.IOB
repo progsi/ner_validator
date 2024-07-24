@@ -7,8 +7,8 @@ York	I-LOC
 Marie	B-PER
 lives	O
 in	O
-the	O
-office	B-LOC
+the	B-LOC
+office	I-LOC
 	
 He	O
 goes	O
