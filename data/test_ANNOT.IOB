@@ -1,6 +1,6 @@
 John	B-PER
 lives	O
-in	B-PER
+in	O
 New	B-LOC
 York	I-LOC
 	
@@ -9,3 +9,9 @@ lives	O
 in	O
 the	O
 office	B-LOC
+	
+He	O
+goes	O
+in	O
+mad	O
+brains	B-LOC

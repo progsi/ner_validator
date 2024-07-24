@@ -6,6 +6,20 @@ import datetime
 
 TAGS = ["O", "B-PER", "B-LOC"]
 
+# Define a list of colors
+COLORS = [
+    "#FF8C8C",  # Light Coral
+    "#4682B4",  # Steel Blue
+    "#66CDAA",  # Medium Aquamarine
+    "#DAA520",  # Goldenrod
+    "#FF1493",  # Deep Pink
+    "#FF4500",  # Orange Red
+    "#20B2AA",  # Light Sea Green
+    "#8A2BE2",  # Blue Violet
+    "#EEE8AA",  # Pale Goldenrod
+    "#BDB76B"   # Dark Khaki
+]
+
 def load_data(file_path):
     df = pd.read_csv(file_path, sep='\t', header=None)
     return df
@@ -71,9 +85,10 @@ def log_timestamp(file_name, index):
         for idx, ts in sorted(log_entries.items()):
             log_file.write(f"Index {idx}: {ts}\n")
 
-def display_metadata(metadata_entry):
+def display_metadata(metadata_entry, colors):
     for col in metadata_entry.index:
-        st.write(f"{col}: {metadata_entry[col]}")
+        color = colors.get(col, '#000000')
+        st.markdown(f"<span style='color:{color}'>{col}: {metadata_entry[col]}</span>", unsafe_allow_html=True)
 
 def write_annotations(file_path, samples):
     with open(file_path, 'r') as file:
@@ -131,16 +146,21 @@ def main():
     current_sample = st.session_state.samples[current_index]
     current_metadata_entry = st.session_state.metadata_df.iloc[current_index]
 
-    display_metadata(current_metadata_entry)
+    # Extract columns and assign light colors
+    columns = [col for col in metadata_df.columns if 'color' not in col.lower()]
+    colors = {col: COLORS[i % len(COLORS)] for i, col in enumerate(columns)}
+
+    display_metadata(current_metadata_entry, colors)
 
     num_tokens = len(current_sample)
-    col_widths = [1] * num_tokens
     cols = st.columns(num_tokens, gap="small")
 
     # Display tokens and tags for the current sample
     for i, row in current_sample.iterrows():
         with cols[i]:
-            st.write(f"{row['Token']} ", end="")
+            tag_type = row['Tag'].split('-')[-1]
+            token_color = colors.get(tag_type, '#ffffff')
+            st.markdown(f"<div style='border: 2px solid {token_color}; padding: 2px; margin: 2px; font-size: small;'>{row['Token']}</div>", unsafe_allow_html=True)
             tag_options = get_available_tags(current_sample['Tag'].tolist(), i)
             selected_tag = st.selectbox(
                 "Tag Selection:",
