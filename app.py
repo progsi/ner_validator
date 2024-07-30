@@ -3,6 +3,8 @@ import pandas as pd
 import os
 import datetime
 import yaml
+from io import StringIO
+
 
 TAGS = ["O", "B-PER", "B-LOC"]
 
@@ -21,9 +23,14 @@ COLORS = [
 ]
 
 def load_data(file_path):
-    df = pd.read_csv(file_path, sep='\t', header=None)
+    if file_path.endswith(".IOB"):
+        with open(file_path, "r") as f:
+            content = f.read()
+        df = pd.read_csv(StringIO(content.replace("\n\n", "\n\t\n")), sep='\t', header=None)
+    else:
+        df = pd.read_csv(file_path, sep='\t', header=None)
     return df
-
+    
 def load_metadata(file_name):
     file_path = os.path.join("data", "input", file_name)
     if os.path.exists(file_path):
