@@ -145,14 +145,22 @@ def write_annotations(file_name, samples, annotator):
             else:
                 if sample_index < len(samples):
                     token, _ = line.strip().split('\t', 1)
-                    tag = samples[sample_index].loc[samples[sample_index]['Token'] == token, 'Tag'].values[0]
-                    if line.strip() != f"{token}\t{tag}":
-                        changes_made = True
-                    file.write(f"{token}\t{tag}\n")
+                    # Ensure the DataFrame contains the token before accessing it
+                    sample_df = samples[sample_index]
+                    if token in sample_df['Token'].values:
+                        tag = sample_df.loc[sample_df['Token'] == token, 'Tag'].values[0]
+              
+                        if line.strip() != f"{token}\t{tag}":
+                            changes_made = True
+                        file.write(f"{token}\t{tag}\n")
+                    else:
+                        # If token is not found, write the original line
+                        file.write(line)
                 else:
                     file.write(line)
     
     return changes_made
+
 
 def load_config():
     config_path = "config.yml"
@@ -169,7 +177,6 @@ def save_config(config):
 
 def find_iob_files(directory):
     return [file_name for file_name in os.listdir(directory) if file_name.lower().endswith('.iob')]
-
 def main():
     # Automatically find IOB files in the data/input directory
     input_dir = os.path.join("data", "input")
@@ -220,40 +227,49 @@ def main():
     display_metadata(current_metadata_entry, colors)
 
     num_tokens = len(current_sample)
-    cols = st.columns(num_tokens, gap="small")
+    max_columns = 16  # Maximum number of columns per row
+    num_rows = (num_tokens + max_columns - 1) // max_columns  # Calculate number of rows needed
 
     # Flag to track if any changes were made
     changes_made = False
 
-    # Display tokens and tags for the current sample
-    for i, row in current_sample.iterrows():
-        with cols[i]:
-            tag_type = row['Tag'].split('-')[-1]
-            token_color = colors.get(tag_type, '#ffffff')
-            st.markdown(f"<div style='border: 2px solid {token_color}; padding: 2px; margin: 2px; font-size: small;'>{row['Token']}</div>", unsafe_allow_html=True)
-            
-            tag_options = get_available_tags(current_sample['Tag'].tolist(), i)
-            selected_tag = st.selectbox(
-                "Tag Selection:",
-                label_visibility="hidden",
-                options=tag_options,
-                index=tag_options.index(row['Tag']) if row['Tag'] in tag_options else 0,
-                key=f"tag_select_{current_index}_{i}"  # Key includes current_index to ensure uniqueness
-            )
-            if selected_tag != row['Tag']:
-                current_sample['Tag'].iloc[i] = selected_tag
-                if selected_tag == 'O' and i + 1 < len(current_sample):
-                    next_tag = current_sample['Tag'].iloc[i + 1]
-                    if next_tag.startswith('I-'):
-                        class_type = next_tag[2:]
-                        current_sample['Tag'].iloc[i + 1] = f'B-{class_type}'
-                st.session_state.samples[current_index] = current_sample
-                changes_made = True
+    # Create rows of columns
+    for row in range(num_rows):
+        with st.container():
+            cols = st.columns(min(max_columns, num_tokens - row * max_columns), gap="small")
+            for col in range(len(cols)):
+                index = row * max_columns + col
+                if index < num_tokens:
+                    with cols[col]:
+                        row_data = current_sample.iloc[index]
+                        tag_type = row_data['Tag'].split('-')[-1]
+                        token_color = colors.get(tag_type, '#ffffff')
+                        st.markdown(f"<div style='border: 2px solid {token_color}; padding: 2px; margin: 2px; font-size: small;'>{row_data['Token']}</div>", unsafe_allow_html=True)
+                    
+                        tag_options = get_available_tags(current_sample['Tag'].tolist(), index)
+                        selected_tag = st.selectbox(
+                            "Tag Selection:",
+                            label_visibility="hidden",
+                            options=tag_options,
+                            index=tag_options.index(row_data['Tag']) if row_data['Tag'] in tag_options else 0,
+                            key=f"tag_select_{current_index}_{row}_{col}"  # Unique key including row and column
+                        )
+                                             
+                        if selected_tag != row_data['Tag']:
+                            current_sample['Tag'].iloc[index] = selected_tag
+                            if selected_tag == 'O' and index + 1 < len(current_sample):
+                                next_tag = current_sample['Tag'].iloc[index + 1]
+                                if next_tag.startswith('I-'):
+                                    class_type = next_tag[2:]
+                                    current_sample['Tag'].iloc[index + 1] = f'B-{class_type}'
+                            st.session_state.samples[current_index] = current_sample
+                            changes_made = True
 
     if changes_made:
         write_annotations(selected_file, st.session_state.samples, selected_annotator)
         log_timestamp(selected_file, selected_annotator, current_index)
 
+    # Display navigation buttons at the bottom
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
         if st.button('Prev'):
