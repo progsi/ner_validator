@@ -22,6 +22,8 @@ COLORS = [
     "#BDB76B"   # Dark Khaki
 ]
 
+st.set_page_config(layout="wide")
+
 def load_data(file_path):
     if file_path.endswith(".IOB"):
         with open(file_path, "r") as f:
@@ -281,6 +283,25 @@ def main():
         st.sidebar.markdown(f"<span style='color: white;'>Approved: {current_timestamp}</span>", unsafe_allow_html=True)
     else:
         st.sidebar.markdown("<span style='color: orange;'>Approved: Not logged</span>", unsafe_allow_html=True)
+
+    # Add custom CSS for horizontal scrolling and reduced margins
+    st.markdown(
+        """
+        <style>
+        .css-18e3th9 {
+            flex: 1 1 0%;
+            padding: 0 2rem;
+        }
+        .css-1d391kg {
+            padding: 0 2rem;
+        }
+        .css-19ih76x {
+            overflow-x: auto;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
 if __name__ == "__main__":
     main()
