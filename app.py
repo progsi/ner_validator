@@ -26,9 +26,9 @@ def load_data(file_path):
     if file_path.endswith(".IOB"):
         with open(file_path, "r") as f:
             content = f.read()
-        df = pd.read_csv(StringIO(content.replace("\n\n", "\n\t\n")), sep='\t', header=None)
+        df = pd.read_csv(StringIO(content.replace('"', "'").replace("\n\n", "\n\t\n")), sep='\t', quotechar='"', header=None)
     else:
-        df = pd.read_csv(file_path, sep='\t', header=None)
+        df = pd.read_csv(file_path, sep='\t', quotechar='"', header=None)
     return df
     
 def load_metadata(file_name):
