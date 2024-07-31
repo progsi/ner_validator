@@ -6,7 +6,7 @@ import yaml
 from io import StringIO
 
 
-TAGS = ["O", "B-PER", "B-LOC"]
+TAGS = ["O", "B-PER", "B-LOC", "B-WoA", "B-Artist"]
 
 # Define a list of colors
 COLORS = [
@@ -209,7 +209,7 @@ def main():
 
     current_index = st.session_state.current_index
     current_sample = st.session_state.samples[current_index]
-    current_metadata_entry = st.session_state.metadata_df.iloc[current_index] if not st.session_state.metadata_df.empty else pd.Series()
+    current_metadata_entry = st.session_state.metadata_df.iloc[current_index].astype(float) if not st.session_state.metadata_df.empty else pd.Series(dtype=float)
 
     # Extract columns and assign light colors
     columns = [col for col in st.session_state.metadata_df.columns if 'color' not in col.lower()] if not st.session_state.metadata_df.empty else []
