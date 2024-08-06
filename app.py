@@ -5,7 +5,6 @@ import datetime
 import yaml
 from io import StringIO
 
-
 TAGS = ["O", "B-PER", "B-LOC", "B-WoA", "B-Artist"]
 
 # Define a list of colors
@@ -32,7 +31,7 @@ def load_data(file_path):
     else:
         df = pd.read_csv(file_path, sep='\t', quotechar='"', header=None)
     return df
-    
+
 def load_metadata(file_name):
     file_path = os.path.join("data", "input", file_name)
     if os.path.exists(file_path):
@@ -43,7 +42,7 @@ def load_metadata(file_name):
 
 def get_annotator_file_path(file_name, annotator):
     return os.path.join("data", "output", file_name.replace('.IOB', f'_{annotator}.IOB'))
-    
+
 def get_file_path(file_name, annotator):
     annotation_file_path = get_annotator_file_path(file_name, annotator)
     file_path = annotation_file_path if os.path.isfile(annotation_file_path) else os.path.join("data", "input", file_name)
@@ -85,8 +84,8 @@ def update_tags_on_change(tags, index, new_tag):
 
 def get_log_filepath(file_name, annotator):
     return os.path.join("logs", f"{file_name}_{annotator}.log")
-    
-def log_timestamp(file_name, annotator, index):
+
+def log_timestamp(file_name, annotator, index, metadata_entry):
     log_file_path = get_log_filepath(file_name, annotator)
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -94,10 +93,10 @@ def log_timestamp(file_name, annotator, index):
     if os.path.exists(log_file_path):
         log_df = pd.read_csv(log_file_path, sep='\t', index_col=0)
     else:
-        log_df = pd.DataFrame(columns=['Timestamp'])
+        log_df = pd.DataFrame(columns=['Timestamp'] + list(metadata_entry.index))
     
     # Update the log entry for the given index
-    log_df.loc[index] = [timestamp]
+    log_df.loc[index] = [timestamp] + metadata_entry.tolist()
     
     # Write the updated log entries back to the file
     log_df.to_csv(log_file_path, sep='\t')
@@ -161,7 +160,6 @@ def write_annotations(file_name, samples, annotator):
     
     return changes_made
 
-
 def load_config():
     config_path = "config.yml"
     if os.path.exists(config_path):
@@ -177,6 +175,7 @@ def save_config(config):
 
 def find_iob_files(directory):
     return [file_name for file_name in os.listdir(directory) if file_name.lower().endswith('.iob')]
+
 def main():
     # Automatically find IOB files in the data/input directory
     input_dir = os.path.join("data", "input")
@@ -218,7 +217,7 @@ def main():
 
     current_index = st.session_state.current_index
     current_sample = st.session_state.samples[current_index]
-    current_metadata_entry = st.session_state.metadata_df.iloc[current_index].astype(float) if not st.session_state.metadata_df.empty else pd.Series(dtype=float)
+    current_metadata_entry = st.session_state.metadata_df.iloc[current_index] if not st.session_state.metadata_df.empty else pd.Series(dtype=float)
 
     # Extract columns and assign light colors
     columns = [col for col in st.session_state.metadata_df.columns if 'color' not in col.lower()] if not st.session_state.metadata_df.empty else []
@@ -267,7 +266,7 @@ def main():
 
     if changes_made:
         write_annotations(selected_file, st.session_state.samples, selected_annotator)
-        log_timestamp(selected_file, selected_annotator, current_index)
+        log_timestamp(selected_file, selected_annotator, current_index, current_metadata_entry)
 
     # Display navigation buttons at the bottom
     col1, col2, col3 = st.columns([1, 1, 1])
@@ -285,7 +284,7 @@ def main():
 
     with col3:
         if st.button('Approve and Next'):
-            log_timestamp(selected_file, selected_annotator, current_index)
+            log_timestamp(selected_file, selected_annotator, current_index, current_metadata_entry)
             if current_index < len(st.session_state.samples) - 1:
                 _ = write_annotations(selected_file, st.session_state.samples, selected_annotator)
                 st.session_state.current_index += 1
