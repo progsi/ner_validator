@@ -21,7 +21,7 @@ trap cleanup EXIT
 
 # Establish the SSH tunnel
 echo "Establishing SSH tunnel to $SSH_ADDRESS..."
-ssh -L 8501:localhost:8501 $SSH_ADDRESS &
+ssh -fNT -L 8501:localhost:8501 $SSH_ADDRESS &
 SSH_PID=$!
 
 # Check if SSH tunnel was established successfully
