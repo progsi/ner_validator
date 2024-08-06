@@ -5,7 +5,8 @@ import datetime
 import yaml
 from io import StringIO
 
-TAGS = ["O", "B-PER", "B-LOC", "B-WoA", "B-Artist"]
+# Define your classes here!
+TAGS = ["O", "B-WoA", "B-Artist"]
 
 # Define a list of colors
 COLORS = [
