@@ -68,10 +68,11 @@ def process_directory(iob_directory: str, log_directory: str) -> pd.DataFrame:
             
             if os.path.exists(iob_file_path):
                 tokens, tags = read_IOB_file(iob_file_path)
-                df_iob = pd.DataFrame({'TEXT': [item for sublist in tokens for item in sublist],
-                                       'IOB': [item for sublist in tags for item in sublist]})
-                df_log["Subset"], df_log["Annotator"] = dataset_name, annotator 
-                df_combined = df_log.join(df_iob)
+
+                df = pd.DataFrame(zip(tokens,tags), columns=["TEXT", "IOB"])
+                df_log["Annotator"] = annotator
+                df_log["Subset"] = dataset_name
+                df_combined = df_log.join(df)
                 
                 # Append to combined_data list
                 combined_data.append(df_combined)
