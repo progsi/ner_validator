@@ -92,7 +92,7 @@ def main():
     
     # Perform pivot operation
     pivoted_df = human_annotations_df.pivot(
-        index=["set_id", "yt_id", "WoA", "Artist", "Subset"], 
+        index=["set_id", "yt_id", "Attr", "WoA", "Artist", "Subset"], 
         columns=["Annotator"], 
         values=["TEXT", "IOB"])
 
