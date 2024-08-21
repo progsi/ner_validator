@@ -2,6 +2,8 @@ import os
 import pandas as pd
 import numpy as np
 from typing import Tuple, List
+import itertools
+from sklearn.metrics import cohen_kappa_score
 
 def read_IOB_file(path: str) -> Tuple[List[np.array], List[np.array]]:
     """Read in an IOB textfile.
@@ -81,6 +83,45 @@ def process_directory(iob_directory: str, log_directory: str) -> pd.DataFrame:
     final_df = pd.concat(combined_data, ignore_index=True)
     return final_df
 
+def compute_inter_annotator_agreement(data):
+    # Extract the list of annotators
+    annotators = data["IOB"].columns
+    
+    # Initialize a list to store results
+    results = []
+    
+    # Iterate over all pairs of annotators
+    for annot1, annot2 in itertools.combinations(annotators, 2):
+        # Extract annotations for the current pair
+        ann1_tags = data["IOB", annot1]
+        ann2_tags = data["IOB", annot2]
+        
+        # Filter out the rows where either of the annotations is missing (if applicable)
+        mask = ~ann1_tags.isna() & ~ann2_tags.isna()
+        ann1_tags = ann1_tags[mask].explode().values
+        ann2_tags = ann2_tags[mask].explode().values
+        
+        # Compute Cohen's Kappa Score between the two annotators
+        kappa_strict = cohen_kappa_score(ann1_tags, ann2_tags)
+        
+        ann1_tags = [t.split("-")[0] for t in ann1_tags]
+        ann2_tags = [t.split("-")[0] for t in ann2_tags]
+        kappa_position = cohen_kappa_score(ann1_tags, ann2_tags)
+
+        # Count the number of samples annotated by both
+        n_samples = mask.sum()
+        
+        # Store the results
+        results.append({
+            'Annotator 1': annot1,
+            'Annotator 2': annot2,
+            'Kappa (strict)': kappa_strict,
+            'Kappa (position)': kappa_position,
+            'N Samples': n_samples
+        })
+    
+    return pd.DataFrame(results)
+    
 
 def main():
     # Define paths
@@ -88,15 +129,17 @@ def main():
     log_directory = "logs"
     
     # Process directories
-    human_annotations_df = process_directory(iob_directory, log_directory)
+    data = process_directory(iob_directory, log_directory)
     
     # Perform pivot operation
-    pivoted_df = human_annotations_df.pivot(
+    data = data.pivot(
         index=["set_id", "yt_id", "Attr", "WoA", "Artist", "Subset"], 
         columns=["Annotator"], 
         values=["TEXT", "IOB"])
+        
+    print(compute_inter_annotator_agreement(data).T)
 
-    pivoted_df.to_parquet("data_annotated.parquet")
+    data.to_parquet("data_annotated.parquet")
 
 
 if __name__ == "__main__":
