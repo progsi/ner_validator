@@ -121,7 +121,23 @@ def compute_inter_annotator_agreement(data):
         })
     
     return pd.DataFrame(results)
+
+def get_disagreement_all(data: pd.DataFrame):
     
+    def get_disagreement(data: pd.DataFrame, annotator_1: str, annotator_2: str):
+        col_annot1 = ("IOB", annotator_1)
+        col_annot2 = ("IOB", annotator_2)
+        
+        data = data.dropna(subset=[col_annot1, col_annot2])
+        mask = data.apply(lambda x: (x[col_annot1] != x[col_annot2]).any(), axis=1)
+        data = data.loc[mask, [("TEXT", annotator_1), col_annot1, col_annot2]].reset_index(level=[0,1,2,3,4], drop=True)
+        data.columns = ["TEXT", annotator_1, annotator_2]
+        for col in data.columns:
+            data[col] = data[col].apply(lambda x: " ".join(x))
+        return data    
+        
+    for annot1, annot2 in itertools.combinations(data.IOB.columns, 2):
+        get_disagreement(data, annot1, annot2).to_json(f"disagreement_{annot1}_{annot2}.json", orient="records", lines=True)
 
 def main():
     # Define paths
@@ -138,6 +154,8 @@ def main():
         values=["TEXT", "IOB"])
         
     print(compute_inter_annotator_agreement(data).T)
+    
+    get_disagreement_all(data)
 
     data.to_parquet("data_annotated.parquet")
 
