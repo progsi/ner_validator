@@ -137,7 +137,7 @@ def get_disagreement_all(data: pd.DataFrame):
         return data    
         
     for annot1, annot2 in itertools.combinations(data.IOB.columns, 2):
-        get_disagreement(data, annot1, annot2).to_json(f"disagreement_{annot1}_{annot2}.json", orient="records", lines=True)
+        get_disagreement(data, annot1, annot2).to_csv(f"disagreement_{annot1}_{annot2}.csv", sep="\t")
 
 def main():
     # Define paths
